@@ -1,0 +1,2287 @@
+<html>
+ <head>
+  <title>
+   Combined Articles
+  </title>
+ </head>
+ <body>
+  <div class="item center menC">
+   <h1>
+    Основы веб-программирования в Go
+   </h1>
+   <div class="date">
+    Последнее обновление: 28.02.2018
+   </div>
+   <p>
+    Особую сферу разработки на Go занимает веб-программирование, которое представляет создание различных веб-приложений, в том числе различных веб-сайтов, 
+веб-сервисов. Изначально Go не предназначался для веб-программирования и более того даже не рассматривался разработчиками в данной роли, и потребовалось некоторое время, прежде чем Go 
+стал применяться в этой области. В то же время это не значит, что Go подойдет для всех веб-проектов. Многие веб-фреймворки содержат кучу готового функционала 
+из коробки, который облегчает создание приложений. В Go подобного нет. Go предоставляет в основном только самые базовые вещи, на основании которых 
+можно строить более сложные конструкции. Go в плане веб-разработки подойдет прежде всего для таких проектов, которые требуют очень высокой 
+производительности, либо когда важны какие-то определенные возможности Go, например, параллельная обработка запросов.
+   </p>
+   <h2>
+    Первое веб-приложение
+   </h2>
+   <p>
+    Основной функционал для создания веб-приложений в Go расположен в пакете
+    <span class="b">
+     net/http
+    </span>
+    . В частности, чтобы запустить веб-приложение, 
+которое могло бы принимать входящие запросы, достаточно вызвать функцию
+    <span class="b">
+     http.ListenAndServe
+    </span>
+    :
+   </p>
+   <pre class="brush:go;">func ListenAndServe(addr string, handler Handler) error</pre>
+   <p>
+    Первый параметр указывает, запросы по какому пути будут обслуживаться веб-приложением. Второй параметр определяет обработчик запроса в виде интерфейса Handler. 
+Этот интерфейс определяет функцию
+    <code>
+     ServeHTTP
+    </code>
+    :
+   </p>
+   <pre class="brush:go;">type Handler interface { 
+	ServeHTTP(ResponseWriter, *Request) 
+}</pre>
+   <p>
+    Функция ServeHTTP принимает два параметра. Первый параметр - объект ResponseWriter представляет поток ответа, в который мы моем записать любые данные, которые мы хотим отправить в ответ пользователю. 
+Второй параметр - Request инкапсулирует всю информацию о запросе.
+   </p>
+   <p>
+    Например, определим простейшее веб-приложение. Для этого создадим на жестком диске каталог для хранения файлов с исходным кодом на языке Go, допустим, он 
+будет называться
+    <span class="ii">
+     golang
+    </span>
+    . И определим в этом каталоге файл
+    <span class="b">
+     server.go
+    </span>
+    со следующим кодом:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+)
+type msg string 
+func (m msg) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+   fmt.Fprint(resp, m) 
+}
+func main() {
+	msgHandler := msg("Hello from Web Server in Go")
+	fmt.Println("Server is listening...")
+	http.ListenAndServe("localhost:8181", msgHandler)
+}</pre>
+   <p>
+    В данном случае определен кастомный тип msg на основе типа string, который реализует метод ServeHTTP интерфейса Handler. В самом методе с помощью 
+вызова
+    <code>
+     fmt.Fprint(resp, m)
+    </code>
+    в поток ответа resp пишется сообщение, которое хранится в строке m. Таким образом, пользователю отправляется ответ.
+   </p>
+   <p>
+    В функции main определяется объект msgHandler:
+   </p>
+   <pre class="brush:go;">msgHandler := msg("Hello from Web Server in Go")</pre>
+   <p>
+    По сути это строка, но тем не менее этот объект реализует интерфейс Handler.
+   </p>
+   <p>
+    Далее для обработки запросов передаем этот объект в качестве второго параметра в функцию http.ListenAndServe:
+   </p>
+   <pre class="brush:go;">http.ListenAndServe("localhost:8181", msgHandler)</pre>
+   <p>
+    Первый параметр указывает, что веб-приложение будет запускаться по адресу
+    <code>
+     localhost:8181
+    </code>
+    . Номер порта необязательно должен быть 8181. 
+Это может быть любой незанятый порт.
+   </p>
+   <p>
+    Запустим веб-приложение:
+   </p>
+   <img alt="Веб-сервер в Golang" src="https://metanit.com/go/web//pics/1.1.png"/>
+   <p>
+    И затем в любом браузере обратимся по адресу "http://localhost:8181/":
+   </p>
+   <img alt="Веб-приложение в языке Go" src="https://metanit.com/go/web//pics/1.2.png"/>
+  </div>
+  <div class="item center menC">
+   <h2>
+    Маршрутизация
+   </h2>
+   <div class="date">
+    Последнее обновление: 28.02.2018
+   </div>
+   <h3>
+    Функция HandleFunc
+   </h3>
+   <p>
+    Система маршрутизации позволяет сопоставить определенные запросы с определенными ресурсами внутри веб-приложения. Для создания протейшей системы маршуртизации в приложении 
+может применяться функция
+    <span class="b">
+     HandleFunc()
+    </span>
+    .
+   </p>
+   <pre class="brush:go;">func HandleFunc(pattern string, handler func(ResponseWriter, *Request))</pre>
+   <p>
+    Ее преимущество состоит в том, что она позволяет указать маршруты для обработки. Первый параметр функции представляет маршрут, который будет обрабатываться данной функцией. А второй - функция handler, которая будет обрабатывать 
+запрос. Она также принимает два параметра: ResponseWriter - поток ответа и *Request - информацию о запросе.
+   </p>
+   <p>
+    Например, определим следующий код в файле сервера:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+)
+
+func main() {
+     
+	http.HandleFunc("/about", func(w http.ResponseWriter, r *http.Request){
+		fmt.Fprint(w, "About Page")
+	})
+	http.HandleFunc("/contact", func(w http.ResponseWriter, r *http.Request){
+		fmt.Fprint(w, "Contact Page")
+	})
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+		fmt.Fprint(w, "Index Page")
+	})
+	fmt.Println("Server is listening...")
+	http.ListenAndServe("localhost:8181", nil)
+}</pre>
+   <p>
+    Первый аргумент функции HandleFunc - "/about", указывает, что эта функция будет обрабатывать запросы по пути "/about", то есть по адресу
+    <span class="ii">
+     http://localhost:8181/about
+    </span>
+    . Второй параметр указывает, что в ответ на запрос по этому пути пользователю будет отправляться 
+строка "About Page".
+   </p>
+   <img alt="Маршрутизация в Go" src="https://metanit.com/go/web//pics/2.4.png"/>
+   <p>
+    Соответственно запрос по пути "/contact" будет обрабатываться функцией
+    <code>
+     http.HandleFunc("/contact",..
+    </code>
+    , 
+а запрос к корню веб-сайта будет обрабатываться функцией
+    <code>
+     http.HandleFunc("/",..
+    </code>
+    .
+   </p>
+   <img alt="Обработка маршрутов в Golang" src="https://metanit.com/go/web//pics/2.5.png"/>
+   <p>
+    Причем подобным образом мы можем сопоставлять маршруты не только с функциями, которые возвращают некоторое содержимое в виде строки, но 
+также мы можем сопоставлять маршруты со статическими файлами. Например, определим в папке с файлом сервера html-страницу
+    <span class="b">
+     hello.html
+    </span>
+    со следующим кодом:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;Index&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h1&gt;Index&lt;/h1&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    Изменим файл сервера:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+)
+
+func main() {
+     
+	http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request){
+		http.ServeFile(w, r, "hello.html")
+	})
+	http.HandleFunc("/about", func(w http.ResponseWriter, r *http.Request){
+		fmt.Fprint(w, "About Page")
+	})
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+		fmt.Fprint(w, "Index Page")
+	})
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    С помощью функции
+    <span class="b">
+     http.ServeFile()
+    </span>
+    при запросе по пути "/hello" будет отправляться файл hello.html:
+   </p>
+   <img alt="Связь статических файлов с маршрутами в Go" src="https://metanit.com/go/web//pics/2.6.png"/>
+   <h3>
+    Функция Handle
+   </h3>
+   <p>
+    Еще один способ определения маршрутов и сопоставления их с обработчиками представляет функция
+    <span class="b">
+     http.Handle
+    </span>
+    :
+   </p>
+   <pre class="brush:go;">func Handle(pattern string, handler Handler)</pre>
+   <p>
+    Например, определеим у сервера следующий код:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+)
+
+type httpHandler struct{
+	message string
+}
+func (h httpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	fmt.Fprint(resp, h.message) 
+ }
+
+func main() {
+	 
+	h1 := httpHandler{ message:"Index"}
+	h2 := httpHandler{ message:"About"}
+
+	http.Handle("/", h1)
+	http.Handle("/about", h2)
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    В данном случае в роли интерфейса Handler, который обрабатывает запрос, выступает структура httpHandler:
+   </p>
+   <img alt="http.Handle in Golang" src="https://metanit.com/go/web//pics/2.7.png"/>
+  </div>
+  <div class="item center menC">
+   <h2>
+    Статические файлы
+   </h2>
+   <div class="date">
+    Последнее обновление: 04.03.2018
+   </div>
+   <h3>
+    Функция http.FileServer
+   </h3>
+   <p>
+    Содержимое веб-приложения или веб-сайта нередко определяется в виде статических html-страниц. Для них не нужен какой-то дополнительный рендеринг на стороне сервера. 
+Для прямой отправки статических файлов в пакете
+    <span class="b">
+     http
+    </span>
+    определена функция
+    <span class="b">
+     FileServer
+    </span>
+    , 
+которая возващает объект Handler:
+   </p>
+   <pre class="brush:go;">func FileServer(root FileSystem) Handler</pre>
+   <p>
+    В качестве параметра она принимает путь к каталогу со статическими файлами.
+   </p>
+   <p>
+    Например, определим в каталоге с исходным файлом на Go папку, которую назовем
+    <span class="b">
+     static
+    </span>
+    . Создадим в ней два 
+статических файла:
+    <span class="b" span="">
+     index.html
+    </span>
+    и
+    <span class="b" span="">
+     about.html
+    </span>
+    .
+   </p>
+   <img alt="Статические файлы в Go" src="https://metanit.com/go/web//pics/2.1.png"/>
+   <p>
+    Определим в файле
+    <span class="b" span="">
+     index.html
+    </span>
+    следующий код:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;Index&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h1&gt;Index&lt;/h1&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    А в файле
+    <span class="b" span="">
+     about.html
+    </span>
+    следующий код:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;About&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h1&gt;About&lt;/h1&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    В главном файле
+    <span class="b">
+     server.go
+    </span>
+    определим следующий код:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+)
+func main() {
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", http.FileServer(http.Dir("static")))
+}</pre>
+   <p>
+    В функцию
+    <code>
+     http.FileServer()
+    </code>
+    передается путь к файлам, который определяется функцией
+    <code>
+     http.Dir()
+    </code>
+    .
+   </p>
+   <p>
+    Запустим приложение и обратимся по адресу http://localhost:8181
+   </p>
+   <img alt="Static files in Go" src="https://metanit.com/go/web//pics/2.2.png"/>
+   <p>
+    Путь к корню веб-сайта автоматически сопоставляется с файлом index.html - это все равно, если бы мы обратились по адресу http://localhost:8181/index.html
+   </p>
+   <p>
+    Также обратимся по адресу http://localhost:8181/about.html. В этом случае мы получим содержимое файла about.html
+   </p>
+   <img src="https://metanit.com/go/web//pics/2.3.png"/>
+   <p>
+    В то же время такой подход довольно ограничен, так как в данном случае сервер отдает только статические файлы. Однако, как правило, возникает 
+необходимость именно в генерации динамического контента. И в этом случае мы можем поступить следующим образом:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+)
+
+func main() {
+	 
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/", fs)
+	
+	http.HandleFunc("/about", func(w http.ResponseWriter, r *http.Request){
+		fmt.Fprint(w, "About Page")
+	})
+	http.HandleFunc("/contact", func(w http.ResponseWriter, r *http.Request){
+		fmt.Fprint(w, "Contact Page")
+	})
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    В данном случае с помощью функции
+    <code>
+     http.Handle("/", fs)
+    </code>
+    файловый сервер монтируется к пути "/", то есть к корню сайта. И наряду 
+с этим мы также можем определять обработчики для других маршрутов. Таким образом, будет работать как динамическая генерация контента, так и статические файлы:
+   </p>
+   <img src="https://metanit.com/go/web//pics/2.3.png"/>
+   <img src="https://metanit.com/go/web//pics/2.4.png"/>
+   <h3>
+    Функция http.ServeFile
+   </h3>
+   <p>
+    Также для отправки файлов можно использовать функцию
+    <span class="b">
+     http.ServeFile()
+    </span>
+    . Она отправляет единичный файл по определенному пути. 
+Например, используем ранее определенные файлы
+    <span class="ii">
+     index.html
+    </span>
+    и
+    <span class="ii">
+     about.html
+    </span>
+    :
+   </p>
+   <pre class="brush:go;">package main
+import (
+    "fmt"
+    "net/http"
+)
+ 
+func main() {
+
+    http.HandleFunc("/about", func(w http.ResponseWriter, r *http.Request){
+        http.ServeFile(w, r, "static/about.html")
+    })
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+        http.ServeFile(w, r, "static/index.html")
+    })
+    fmt.Println("Server is listening...")
+    http.ListenAndServe(":8181", nil)
+}</pre>
+  </div>
+  <div class="item center menC">
+   <h2>
+    Маршрутизация и gorilla/mux
+   </h2>
+   <div class="date">
+    Последнее обновление: 01.03.2018
+   </div>
+   <p>
+    Go предоставляет базовые возможности по маршрутизации. Однако этих возможностей, как правило, было недостаточно, особенно в тех случаях, когда 
+необходимо выделять сегменты из запрошенного адреса URL и каким-то образом обрабатывать их. В этом случае мы можем воспользоваться рядом существующих инструментов, 
+одним из которых является
+    <span class="b">
+     Gorilla
+    </span>
+    . (Официальный сайт
+    <a href="http://www.gorillatoolkit.org/" rel="nofollow">
+     http://www.gorillatoolkit.org/
+    </a>
+    ) Это пакет разработчика специально для упрощения создания веб-приложений на языке Go, 
+который, в свою очередь, включает ряд пакетов:
+   </p>
+   <ul>
+    <li>
+     <p>
+      <span class="b">
+       gorilla/context
+      </span>
+      : предназначен для создания глобальных переменных из тела запроса
+     </p>
+    </li>
+    <li>
+     <p>
+      <span class="b">
+       gorilla/rpc
+      </span>
+      : представляет реализацию протокола RPC-JSON
+     </p>
+    </li>
+    <li>
+     <p>
+      <span class="b">
+       gorilla/websocket
+      </span>
+      : реализует протокол WebSocket
+     </p>
+    </li>
+    <li>
+     <p>
+      <span class="b">
+       gorilla/schema
+      </span>
+      : позволяет создавать из значений формы единую структуру
+     </p>
+    </li>
+    <li>
+     <p>
+      <span class="b">
+       gorilla/securecookie
+      </span>
+      : позволяет создавать зашифрованные куки, которые применяются при аутентификации
+     </p>
+    </li>
+    <li>
+     <p>
+      <span class="b">
+       gorilla/sessions
+      </span>
+      : обеспечивает поддержку сессий
+     </p>
+    </li>
+    <li>
+     <p>
+      <span class="b">
+       gorilla/mux
+      </span>
+      : позволяет определять более сложные маршруты, которые могут использовать регулярные выражения
+     </p>
+    </li>
+    <li>
+     <p>
+      <span class="b">
+       gorilla/reverse
+      </span>
+      : используется для создания регулярных выражений для маршрутов
+     </p>
+    </li>
+   </ul>
+   <p>
+    В данном случае задействуем возможности по созданию маршрутов с помощью gorilla/mux и для установки данного пакета выполним в командной строке/терминале 
+следующую команду:
+   </p>
+   <div class="console">
+    <pre class="consoletext">go get github.com/gorilla/mux</pre>
+   </div>
+   <p>
+    Определим следующий код сервера:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"github.com/gorilla/mux"
+)
+
+func productsHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	response := fmt.Sprintf("Product %s", id)
+	fmt.Fprint(w, response)
+}
+
+func main() {
+	 
+	router := mux.NewRouter()
+	router.HandleFunc("/products/{id:[0-9]+}", productsHandler)
+  	http.Handle("/",router)
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    Для определения маршрутов с помощью gorilla/mux применяется функция
+    <span class="b">
+     mux.NewRouter()
+    </span>
+    . У возвращаемого этой функцией объекта мы можем вызвать 
+метод
+    <span class="b">
+     HandleFunc
+    </span>
+    , который сопоставляет маршрут с определенным обработчиком.
+   </p>
+   <p>
+    Первый параметр представляет шаблон пути запроса. В фигурных скобках мы можем определить параметр в формате
+    <code>
+     имя_параметра:регулярное_выражение
+    </code>
+    . 
+Регулярное выражение определять необязательно, но если оно определено, то параметр должен соответствовать этому выражению. То есть в данном случае 
+параметр id должен представлять числовое значение.
+   </p>
+   <p>
+    Второй параметр - функция обработчика запросов, по указанному в первом параметре маршруту. Подобная функция должна иметь два параметра:
+    <code>
+     func(w http.ResponseWriter, r *http.Request)
+    </code>
+    .
+   </p>
+   <p>
+    В данном случае функция обработчика - productsHandler - получает параметры пути запроса через функцию
+    <span class="b">
+     mux.Vars
+    </span>
+    . 
+Затем из полученного объекта можно извлечь название нужного нам параметра:
+    <code>
+     id := vars["id"]
+    </code>
+    . Название параметра здесь то же самое, что в определение маршрута.
+   </p>
+   <p>
+    В итоге при обращении к приложению по запросу
+    <span class="ii">
+     localhost:8181/products/2
+    </span>
+    мы получим следующий вывод:
+   </p>
+   <img alt="Gorilla mux in Go" src="https://metanit.com/go/web//pics/2.8.png"/>
+   <p>
+    Если бы мы захотели бы сделать то же самое, но штатными средствами, которые есть в Go без gorilla/mux, то нам бы пришлось писать дополнительный 
+код для парсинга запрошенного пути.
+   </p>
+   <p>
+    Подобным образом мы можем использовать несколько параметров:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"github.com/gorilla/mux"
+)
+
+func productsHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	cat := vars["category"]
+	response := fmt.Sprintf("Product category=%s id=%s", cat, id)
+	fmt.Fprint(w, response)
+}
+
+func main() {
+	 
+	router := mux.NewRouter()
+	router.HandleFunc("/products/{category}/{id:[0-9]+}", productsHandler)
+  	http.Handle("/",router)
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    В данном случае определены два параметра: id и category.
+   </p>
+   <img alt="path parameters parsing in Go" src="https://metanit.com/go/web//pics/2.9.png"/>
+   <p>
+    Можно определять несколько маршрутов, которые могут использовать либо различные, либо одни и те же обработчики:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"github.com/gorilla/mux"
+)
+
+func productsHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	response := fmt.Sprintf("id=%s", id)
+	fmt.Fprint(w, response)
+}
+func indexHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "Index Page")
+}
+
+func main() {
+	 
+	router := mux.NewRouter()
+	router.HandleFunc("/products/{id:[0-9]+}", productsHandler)
+	router.HandleFunc("/articles/{id:[0-9]+}", productsHandler)
+	router.HandleFunc("/", indexHandler)
+  	http.Handle("/",router)
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+  </div>
+  <div class="item center menC">
+   <h2>
+    Строка запроса и отправка форм
+   </h2>
+   <div class="date">
+    Последнее обновление: 04.03.2018
+   </div>
+   <h3>
+    Строка запроса
+   </h3>
+   <p>
+    Строка запроса представляет набор параметров, которые помещаются в адресе после вопросительного знака. При этом каждый параметр определяет название и значение. 
+Например, в адресе:
+   </p>
+   <pre class="brush:go;">localhost:8181/user?name=Sam&amp;age=21</pre>
+   <p>
+    Часть
+    <code>
+     ?name=Sam&amp;age=21
+    </code>
+    представляет строку запроса, в которой есть два параметра name и age. Для каждого параметра определено имя и значение, 
+которые отделяются знаком равно. Параметр name имеет значение "Sam", а параметр age - значение 21. Друг от друга параметры отделяются знаком амперсанда.
+   </p>
+   <p>
+    Для получения строки запроса у объекта Request вначале надо получить запрошенный адрес через переменную
+    <code>
+     URL
+    </code>
+    . Далее у адреса 
+вызывается метод
+    <code>
+     Query()
+    </code>
+    , который и возвращает строку запроса.
+   </p>
+   <p>
+    Например, получим данные строки запроса:
+   </p>
+   <pre class="brush:go;">package main
+import (
+    "fmt"
+	"net/http"
+)
+ 
+func main() {
+
+	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request){
+	
+        name := r.URL.Query().Get("name")
+		age := r.URL.Query().Get("age")
+        fmt.Fprintf(w, "Имя: %s Возраст: %s", name, age)
+	})
+    fmt.Println("Server is listening...")
+    http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    Чтобы получить значение отдельного параметра, применяется метод
+    <code>
+     Get()
+    </code>
+    , в который передается имя параметра:
+   </p>
+   <img alt="Строка запроса Query в Go" src="https://metanit.com/go/web//pics/2.12.png"/>
+   <h3>
+    Отправка форм
+   </h3>
+   <p>
+    Рассмотрим, как мы можем получить в Go значения отправленных форм.
+   </p>
+   <p>
+    Все данные запроса в Go инкапсулируются в объекте
+    <span class="b">
+     http.Request
+    </span>
+    . Через его метод
+    <span class="b">
+     FormValue()
+    </span>
+    можно получить определенные данные, которые отправлены через форму.
+   </p>
+   <pre class="brush:go;">func (r *Request) FormValue(key string) string</pre>
+   <p>
+    Метод
+    <span class="b">
+     FormValue()
+    </span>
+    извлекает данные по ключу из запроса POST и PUT, а также из строки запроса. При этом он всегда возвращает 
+строку.
+   </p>
+   <p>
+    Например, определим рядом с сервером файл
+    <span class="b">
+     user.html
+    </span>
+    со следующим кодом:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;Ввод данных&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h2&gt;Ввод данных&lt;/h2&gt;
+        &lt;form method="POST" action="postform"&gt;
+            &lt;label&gt;Имя&lt;/label&gt;&lt;br&gt;
+            &lt;input type="text" name="username" /&gt;&lt;br&gt;&lt;br&gt;
+            &lt;label&gt;Возраст&lt;/label&gt;&lt;br&gt;
+            &lt;input type="number" name="userage" /&gt;&lt;br&gt;&lt;br&gt;
+            &lt;input type="submit" value="Отправить" /&gt;
+        &lt;/form&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    В данном случае на форме два поля - username и userage. При нажатии на кнопку данные будут отправляться запросом POST по адресу "/postform".
+   </p>
+   <p>
+    В коде сервера определим получение данных:
+   </p>
+   <pre class="brush:go;">package main
+import (
+    "fmt"
+	"net/http"
+)
+ 
+func main() {
+
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+        http.ServeFile(w, r, "user.html")
+    })
+    http.HandleFunc("/postform", func(w http.ResponseWriter, r *http.Request){
+	
+        name := r.FormValue("username")
+		age := r.FormValue("userage")
+		
+        fmt.Fprintf(w, "Имя: %s Возраст: %s", name, age)
+    })
+    fmt.Println("Server is listening...")
+    http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    По запросу к корню сайта приложение будет отправлять пользователю файл user.html для ввода данных. При отправке форму на адрес "/postform" 
+приложение будет получать данные. Так как поля на форме называются username и userage, то чтобы получить эти данные, нужно использовать эти имена, типа
+    <code>
+     name := r.FormValue("username")
+    </code>
+    .
+   </p>
+   <img alt="Отправка форм в веб-приложении на Go" src="https://metanit.com/go/web//pics/2.11.png"/>
+   <p>
+    При этом также FormValue позволяет получить данные из строки запроса, то есть мы, например, можем передать значения для username и userage 
+через строку запроса:
+   </p>
+   <img alt="Парсинг строки запроса в Go" src="https://metanit.com/go/web//pics/2.10.png"/>
+  </div>
+  <div class="item center menC">
+   <h1>
+    Шаблоны
+   </h1>
+   <h2>
+    Определение и использовние шаблонов
+   </h2>
+   <div class="date">
+    Последнее обновление: 02.03.2018
+   </div>
+   <p>
+    Ранее рассматривалось, как в Go отправлять статические файла, в частности, html-страницы. Определение контента в виде html-страниц довольно удобно: 
+мы используем преимущества html+css+javascript, отделяем представление от основной логики, которая пишется на Go. Однако статические страницы малополезны, 
+когда нам необходимо динамически генерировать некоторый контент на основании различных факторов, например, параметров, переданных через строку запроса. 
+И в этом случае мы можем воспользоваться
+    <span class="b">
+     шаблонами
+    </span>
+    .
+   </p>
+   <p>
+    Язык Go предоставляет функциональность шаблонов по умолчанию в виде пакета
+    <span class="b">
+     html/template
+    </span>
+    .
+   </p>
+   <p>
+    Используем протейший шаблон:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"html/template"
+)
+
+func main() {
+	 
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		data := "Go Template"
+		tmpl, _ := template.New("data").Parse("&lt;h1&gt;{{ .}}&lt;/h1&gt;")
+		tmpl.Execute(w, data)
+	})
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    С помощью функции
+    <code>
+     template.New("data")
+    </code>
+    определяется имя шаблона. Затем для установки самого шаблона используется функция
+    <code>
+     Parse("&lt;h1&gt;{{ .}}&lt;/h1&gt;")
+    </code>
+    . В данном случае шаблон фактически представляет заголовок h1. Но ключевым элементом здесь является 
+двойная пара фигурных скобок
+    <code>
+     {{ .}}
+    </code>
+    . Они позволяют вводить в разметку html различные данные. Здесь в качестве данных указана точка. 
+Точка указывает на контекст шаблона - то есть все данные, которые переданы шаблону.
+   </p>
+   <p>
+    Стоит отметить, что функция Parse возвращает два значения: собственно шаблон (в данном случае переменная tmpl) и объект ошибки (при ее возникновении). 
+В данном случае объект ошибки не используется, поэтому вместо него идет прочерк.
+   </p>
+   <p>
+    Чтобы передать шаблону данные, сгенерировать итоговую html-разметку и отправить ее в ответ на запрос, применяется функция
+    <span class="b">
+     Execute
+    </span>
+    :
+   </p>
+   <pre class="brush:go;">tmpl.Execute(w, data)</pre>
+   <p>
+    В данном случае переменная data представляет строку, и это как раз те данные, которые будут вставляться в шаблон вместо точки
+    <code>
+     {{ .}}
+    </code>
+    . 
+Ну а первый параметр - это объект
+    <code>
+     http.ResponseWriter
+    </code>
+    , через который отправляются данные.
+   </p>
+   <p>
+    В итоге при обращении к приложению мы увидим следующий результат:
+   </p>
+   <img alt="Templates in Golang" src="https://metanit.com/go/web//pics/3.1.png"/>
+   <p>
+    Шаблон может принимать более сложные данные, которые описываются структурой. Например:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"html/template"
+)
+type ViewData struct{
+
+	Title string
+	Message string
+}
+func main() {
+	 
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		data := ViewData{
+			Title: "World Cup",
+			Message: "FIFA will never regret it",
+		}
+		tmpl := template.Must(template.New("data").Parse(`&lt;div&gt;
+			&lt;h1&gt;{{ .Title}}&lt;/h1&gt;
+			&lt;p&gt;{{ .Message}}&lt;/p&gt;
+		&lt;/div&gt;`))
+		tmpl.Execute(w, data)
+	})
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    Здесь данные, передаваемые в шаблон, описываются структурой ViewData, и данная структура будет представлять контекст шаблона. Поэтому чтобы обратиться 
+к отдельным ее переменным, надо после точки указать название переменной:
+    <code>
+     {{ .Title}}
+    </code>
+    .
+   </p>
+   <p>
+    Стоит отметить, что названия переменных следует определять с большой буквы.
+   </p>
+   <p>
+    Так как в данном случае используются сложные данные, то их надо обернуть в функцию
+    <code>
+     template.Must()
+    </code>
+    . Сам код шаблона можно переносить на 
+несколько строк, в этом случае код помещается в косые кавычки. Если код шаблона размещается на одной строке, то можно использовать обычные кавычки.
+   </p>
+   <p>
+    Результат работы программы:
+   </p>
+   <img alt="Complex data in templates in Go" src="https://metanit.com/go/web//pics/3.2.png"/>
+   <p>
+    Однако определение шаблона внутри кода на Go - нелучший вариант, особенно когда шаблон содержит много сложной html-разметки, вкрапления стилей и скриптов javascript. 
+Поэтому более оптимально определять шаблоны в виде отдельных файлов. Например, определим в проекте папку
+    <span class="b">
+     templates
+    </span>
+    , а в ней 
+создадим файл
+    <span="b">
+     index.html
+     .
+    </span="b">
+   </p>
+   <img src="https://metanit.com/go/web//pics/3.3.png"/>
+   <p>
+    Определим в index.html следующий код:
+   </p>
+   <pre class="brush:go;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;{{ .Title}}&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h1&gt;{{ .Title}}&lt;/h1&gt;
+        &lt;p&gt;{{ .Message}}&lt;/p&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    Используем этот шаблон в коде сервера:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"html/template"
+)
+type ViewData struct{
+
+	Title string
+	Message string
+}
+func main() {
+	 
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		data := ViewData{
+			Title: "World Cup",
+			Message: "FIFA will never regret it",
+		}
+		tmpl, _ := template.ParseFiles("templates/index.html")
+		tmpl.Execute(w, data)
+	})
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    Для получения кода из файла применяется функция
+    <span class="b">
+     template.ParseFiles()
+    </span>
+    , которой передается путь к файлу.
+Итоговый результат будет почти таким же, как и в предыдущим случае:
+   </p>
+   <img alt="Шаблоны html в языке Go" src="https://metanit.com/go/web//pics/3.4.png"/>
+  </div>
+  <div class="item center menC">
+   <h2>
+    Синтаксис шаблонов
+   </h2>
+   <div class="date">
+    Последнее обновление: 02.03.2018
+   </div>
+   <p>
+    Рассмотрим некоторые базовые элементы синтаксиса шаблонов, например, условные конструкции и циклы.
+   </p>
+   <h3>
+    Циклы
+   </h3>
+   <p>
+    Пусть на стороне сервера в шаблон передается массив:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"html/template"
+)
+type ViewData struct{
+
+	Title string
+	Users []string
+}
+func main() {
+	 
+	data := ViewData{
+		Title : "Users List",
+		Users : []string{ "Tom", "Bob", "Sam", },
+	}
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		tmpl, _ := template.ParseFiles("templates/index.html")
+		tmpl.Execute(w, data)
+	})
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    Для вывода массива в шаблоне используется конструкция
+    <code>
+     {{range массив}} {{end}}
+    </code>
+    . После слова
+    <span class="b">
+     range
+    </span>
+    указывается перебираемый массив:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;{{ .Title}}&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h1&gt;{{ .Title}}&lt;/h1&gt;
+        &lt;ul&gt;
+            {{range .Users}}
+                &lt;li&gt;&lt;b&gt;{{ . }}&lt;/b&gt;&lt;/li&gt;
+            {{end}}
+        &lt;/ul&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    Внутри конструкции range мы можем обращаться к текущему перебираемому объекту с помощью точки
+    <code>
+     {{ . }}
+    </code>
+    .
+   </p>
+   <img alt="range in template in Go" src="https://metanit.com/go/web//pics/3.5.png"/>
+   <p>
+    Массив может не иметь данных. Если нам надо определить поведение на этот случай, то можно использовать подконструкцию
+    <code>
+     {{else}}
+    </code>
+    :
+   </p>
+   <pre class="brush:xml;">&lt;ul&gt;
+	{{range .Users}}
+		&lt;li&gt;&lt;b&gt;{{ . }}&lt;/b&gt;&lt;/li&gt;
+	{{else}}
+		&lt;li&gt;&lt;b&gt;no rows&lt;/b&gt;&lt;/li&gt;
+	{{end}}
+&lt;/ul&gt;</pre>
+   <p>
+    Данные в массиве могут представлять сложные данные:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"html/template"
+)
+type ViewData struct{
+
+	Title string
+	Users []User
+}
+type User struct{
+	Name string
+	Age int
+}
+func main() {
+	 
+	data := ViewData{
+		Title : "Users List",
+		Users : []User{
+			User{Name: "Tom", Age: 21},
+			User{Name: "Kate", Age: 23},
+			User{Name: "Alice", Age: 25},
+		},
+	}
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		tmpl, _ := template.ParseFiles("templates/index.html")
+		tmpl.Execute(w, data)
+	})
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    Вывод этих данных в шаблоне:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;{{ .Title}}&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h1&gt;{{ .Title}}&lt;/h1&gt;
+        &lt;ul&gt;
+            {{range .Users}}
+                &lt;li&gt;
+                    &lt;div&gt;&lt;b&gt;{{ .Name }}&lt;/b&gt;: {{ .Age }}&lt;/div&gt;
+                &lt;/li&gt;
+            {{end}}
+        &lt;/ul&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <img alt="for cycle in template in golang" src="https://metanit.com/go/web//pics/3.6.png"/>
+   <h3>
+    Условные конструкции
+   </h3>
+   <p>
+    Если нам надо вывести в шаблоне некоторую разметку в зависимости от определенного условия, то можно использовать конструкцию
+    <code>
+     {{if условие}}{{end}}
+    </code>
+    . 
+После ключевого слова if идет условие, которое должно возващать значение типа
+    <span class="b">
+     bool
+    </span>
+    : true или false.
+   </p>
+   <p>
+    Например, передадим из сервера в шаблон данные, которые содержат логическое выражение:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"html/template"
+)
+type ViewData struct{
+
+	Available bool
+}
+func main() {
+	 
+	data := ViewData{
+		Available: true,
+	}
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		tmpl, _ := template.ParseFiles("templates/index.html")
+		tmpl.Execute(w, data)
+	})
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    Определим в шаблоне следующий код:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;Available&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;div&gt;
+            {{if .Available}}
+            &lt;p&gt;Available&lt;/p&gt;
+            {{end}}
+        &lt;/div&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    То есть если переменная Available равна true, то будет выводиться разметка
+    <code>
+     &lt;p&gt;Available&lt;/p&gt;
+    </code>
+    . Если пременная равна 
+false, то ничего не будет выводиться.
+   </p>
+   <p>
+    С помощью конструкции
+    <code>
+     {{else}}
+    </code>
+    можно определить разметку html, которая выводится, если условие в if равно false:
+   </p>
+   <pre class="brush:xml;">&lt;div&gt;
+	{{if .Available}}
+	&lt;p&gt;Available&lt;/p&gt;
+	{{else}}
+	&lt;p&gt;Not Available&lt;/p&gt;
+	{{end}}
+&lt;/div&gt;</pre>
+   <p>
+    Также мы можем в if сравнивать значения. Например, пусть сервер передает в шаблон текущий час:
+   </p>
+   <pre class="brush:go;">package main
+import (
+	"fmt"
+	"net/http"
+	"html/template"
+	"time"
+)
+type ViewData struct{
+
+	Hour int
+}
+func main() {
+	 
+	data := ViewData{
+		Hour: time.Now().Hour(),
+	}
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		tmpl, _ := template.ParseFiles("templates/index.html")
+		tmpl.Execute(w, data)
+	})
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    С помощью метода
+    <code>
+     time.Now().Hour()
+    </code>
+    здесь получаем текущий час.
+   </p>
+   <p>
+    В шаблоне определим следующую конструкцию:
+   </p>
+   <pre class="brush:xml;">&lt;div&gt;
+	{{if lt .Hour 12 }}
+	&lt;p&gt;Доброе утро&lt;/p&gt;
+	{{else}}
+	&lt;p&gt;Добрый день&lt;/p&gt;
+	{{end}}
+&lt;/div&gt;</pre>
+   <p>
+    В данном случае сравнивается значение текущего часа с числом 12, и в зависимости от значения выводим тот или иной текст.
+   </p>
+   <p>
+    Оператор
+    <span class="b">
+     lt
+    </span>
+    можно расшифровать как "less than", то есть меньше чем. То есть фактически это аналог операции
+    <code>
+     &lt;
+    </code>
+    . Он сравнивает два значения и возвращает
+    <span class="b">
+     true
+    </span>
+    , 
+если первое значение менльше второго. Иначе возвращается значение
+    <span class="b">
+     false
+    </span>
+    .
+   </p>
+   <p>
+    Подобным образом мы можем использовать еще ряд операторов, которые аналогичны стандартным операторам сравнения:
+   </p>
+   <ul>
+    <li>
+     <p>
+      <code>
+       eq
+      </code>
+      : возвращает true, если два значения равны
+     </p>
+    </li>
+    <li>
+     <p>
+      <code>
+       ne
+      </code>
+      : возвращает true, если два значения НЕ равны
+     </p>
+    </li>
+    <li>
+     <p>
+      <code>
+       le
+      </code>
+      : возвращает true, если первое значение меньше или равно второму
+     </p>
+    </li>
+    <li>
+     <p>
+      <code>
+       gt
+      </code>
+      : возвращает true, если первое значение больше второго
+     </p>
+    </li>
+    <li>
+     <p>
+      <code>
+       ge
+      </code>
+      : возвращает true, если первое значение больше или равно второму
+     </p>
+    </li>
+   </ul>
+   <p>
+    Кроме того, есть ряд операторов, которые аналогичны логическим операторам:
+   </p>
+   <ul>
+    <li>
+     <p>
+      <code>
+       and
+      </code>
+      : возвращает true, если два выражения равны true
+     </p>
+    </li>
+    <li>
+     <p>
+      <code>
+       or
+      </code>
+      : возвращает true, если хотя бы одно из двух выражений равно true
+     </p>
+    </li>
+    <li>
+     <p>
+      <code>
+       not
+      </code>
+      : возвращает true, если выражение возвращает false
+     </p>
+    </li>
+   </ul>
+   <p>
+    Применение некоторых операторов:
+   </p>
+   <pre class="brush:xml;">&lt;div&gt;
+	{{if or (gt 2 1) (lt 5 7)}}
+	&lt;p&gt;Первый вариант&lt;/p&gt;
+	{{else}}
+	&lt;p&gt;Второй вариант&lt;/p&gt;
+	{{end}}
+&lt;/div&gt;</pre>
+  </div>
+  <div class="item center menC">
+   <h1>
+    Работа с базой данных
+   </h1>
+   <h2>
+    Подключение к БД и получение данных
+   </h2>
+   <div class="date">
+    Последнее обновление: 03.03.2018
+   </div>
+   <p>
+    Рассмотрим, как мы можем взаимодействовать с базой данных в веб-приложении. Основные моменты работы с бд с помощью языка программирования 
+Go были рассмотрены в материале
+    <a href="https://metanit.com/go/tutorial/10.1.php">
+     Go и базы данных
+    </a>
+    . В данном же случае мы рассмотрим только непосредственно применение 
+этих моментов в рамках веб-приложения.
+   </p>
+   <p>
+    В качестве системы управления базами данных возьмем MySQL. Вначале создадим на сервере MySQL базу данных productdb и в ней таблицу products. Для этого можно использовать следующие выражений SQL
+   </p>
+   <pre class="brush:sql;">create database productdb;
+use productdb;
+create table products (
+    id int auto_increment primary key,
+    model varchar(30) not null,
+    company varchar(30) not null,
+    price int not null
+)</pre>
+   <p>
+    То есть база данных productdb, в ней есть таблица products, которая будет хранить информацию о товарах, будет 4 столбца: id - идентификатор каждой записи, model - название товара, company - производитель товара и price - цена товара.
+   </p>
+   <p>
+    Добавим в нее какие-нибудь начальные данные, например, с помощью следующего скрипта:
+   </p>
+   <pre class="brush:sql;">insert into productdb.Products (model, company, price) 
+values ('iPhone X', 'Apple', 74000),
+('Pixel 2', 'Google', 62000),
+('Galaxy S9', 'Samsung', 65000)</pre>
+   <p>
+    Прежде чем начать работать с MySQL, надо добавить драйвер для Go к переменной $GOPATH (если он ранее не был добавлен). 
+Для этого нужно выполнить в командной строке/терминале следующую команду:
+   </p>
+   <div class="console">
+    <pre class="consoletext">go get github.com/go-sql-driver/mysql</pre>
+   </div>
+   <p>
+    После этого определим на сервере следующий код:
+   </p>
+   <pre class="brush:go;">package main
+import (
+    "fmt"
+	"database/sql"
+    _ "github.com/go-sql-driver/mysql"
+	"net/http"
+	"html/template"
+	"log"
+)
+type Product struct{
+    Id int
+    Model string
+    Company string
+    Price int
+}
+var database *sql.DB
+
+func IndexHandler(w http.ResponseWriter, r *http.Request) {
+
+	rows, err := database.Query("select * from productdb.Products")
+	if err != nil {
+		log.Println(err)
+	}
+	defer rows.Close()
+	products := []Product{}
+	
+	for rows.Next(){
+		p := Product{}
+		err := rows.Scan(&amp;p.Id, &amp;p.Model, &amp;p.Company, &amp;p.Price)
+		if err != nil{
+			fmt.Println(err)
+			continue
+		}
+		products = append(products, p)
+	}
+
+	tmpl, _ := template.ParseFiles("templates/index.html")
+	tmpl.Execute(w, products)
+}
+
+func main() {
+	 
+	db, err := sql.Open("mysql", "root:password@/productdb")
+    
+    if err != nil {
+        log.Println(err)
+	}
+	database = db
+    defer db.Close()
+	http.HandleFunc("/", IndexHandler)
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    Прежде всего здесь определена структура Product, которая соответствует опредению таблицы products в базе данных. А за взаимодействие с базой данных 
+отвечает переменная database.
+   </p>
+   <p>
+    Для отправки пользователю списка объектов из БД определена функция IndexHandler. В ней с помощью метода
+    <code>
+     database.Query
+    </code>
+    выполняется запрос "select * from productdb.Products", который извлекает все объекты из таблицы. Затем из полученного набора создается массив структур Product, 
+который затем передается в шаблон index.html (код шаблона приведен ниже).
+   </p>
+   <p>
+    В функции main открываем подключение с базой данных с помощью функции
+    <code>
+     sql.Open
+    </code>
+    :
+   </p>
+   <pre class="brush:go;">db, err := sql.Open("mysql", "root:password@/productdb")</pre>
+   <p>
+    Этой функции в качестве первого параметра передается название драйвера - "mysql". Второй параметр представляет настройки подключения, где
+    <code>
+     root
+    </code>
+    - название пользователя в MySQL, password - пароль этого пользователя (как правило тот, который устанавливается при установке MySQL), 
+и productdb - название базы данных. Соответственно в каждом конкретном случае пароль может отличаться.
+   </p>
+   <p>
+    После открытия подключения устанавливается значение переменной database.
+   </p>
+   <pre class="brush:go;">database = db</pre>
+   <p>
+    И далее функция IndexHandler устанавливается в качестве обработчика запросов по корневому адресу:
+   </p>
+   <pre class="brush:go;">http.HandleFunc("/", IndexHandler)</pre>
+   <p>
+    Теперь определим в проекте папку
+    <span class="b">
+     templates
+    </span>
+    , а в ней создадим новый файл
+    <span class="b">
+     index.html
+    </span>
+    , 
+который будет представлять шаблон для вывода массива объектов и будет иметь следующий код:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;Products&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;table&gt;
+			&lt;thead&gt;&lt;th&gt;Id&lt;/th&gt;&lt;th&gt;Model&lt;/th&gt;&lt;th&gt;Company&lt;/th&gt;&lt;th&gt;Price&lt;/th&gt;&lt;/thead&gt;
+            {{range . }}
+            &lt;tr&gt;
+                &lt;td&gt;{{.Id}}&lt;/td&gt;
+                &lt;td&gt;{{.Model}}&lt;/td&gt;
+                &lt;td&gt;{{.Company}}&lt;/td&gt;
+                &lt;td&gt;{{.Price}}&lt;/td&gt;
+            &lt;/tr&gt;
+            {{end}}
+        &lt;/table&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    В итоге после запуска проекта и обращения к корню сайта будет открыто подключение к базе данных, приложение получит все необходимые данные из бд 
+и передаст их в шаблон:
+   </p>
+   <img alt="База данных MySQL в веб-приложении на Go" src="https://metanit.com/go/web//pics/4.1.png"/>
+  </div>
+  <div class="item center menC">
+   <h2>
+    Добавление данных
+   </h2>
+   <div class="date">
+    Последнее обновление: 03.03.2018
+   </div>
+   <p>
+    Процесс добавления данных разбивается на две части. Вначале нам надо показать пользователю форму для ввода данных. Затем, когда пользователь отправит 
+введенные данные, нам надо их получить и добавить в базу данных.
+   </p>
+   <p>
+    Возьмем проект из прошлой темы. И прежде всего добавим в папку templates новый файл
+    <span class="b">
+     create.html
+    </span>
+    , который будет содержать 
+форму для добавления:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;New Product&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h3&gt;Add Product&lt;/h3&gt;
+        &lt;form method="POST"&gt;
+            &lt;label&gt;Model&lt;/label&gt;&lt;br&gt;
+            &lt;input type="text" name="model" /&gt;&lt;br&gt;&lt;br&gt;
+            &lt;label&gt;Company&lt;/label&gt;&lt;br&gt;
+            &lt;input type="text" name="company" /&gt;&lt;br&gt;&lt;br&gt;
+            &lt;label&gt;Price&lt;/label&gt;&lt;br&gt;
+            &lt;input type="number" name="price" /&gt;&lt;br&gt;&lt;br&gt;
+            &lt;input type="submit" value="Send" /&gt;
+        &lt;/form&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <img alt="Create in Database in Golang" src="https://metanit.com/go/web//pics/4.2.png"/>
+   <p>
+    Изменим файл сервера следующим образом:
+   </p>
+   <pre class="brush:go;">package main
+import (
+    "fmt"
+	"database/sql"
+    _ "github.com/go-sql-driver/mysql"
+	"net/http"
+	"html/template"
+	"log"
+)
+type Product struct{
+    Id int
+    Model string
+    Company string
+    Price int
+}
+var database *sql.DB
+
+// функция добавления данных
+func CreateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+
+		err := r.ParseForm()
+		if err != nil {
+			log.Println(err)
+		}
+  		model := r.FormValue("model")
+  		company := r.FormValue("company")
+  		price := r.FormValue("price")
+
+  		_, err = database.Exec("insert into productdb.Products (model, company, price) values (?, ?, ?)", 
+		  model, company, price)
+
+  		if err != nil {
+    		log.Println(err)
+		  }
+		http.Redirect(w, r, "/", 301)
+	}else{
+		http.ServeFile(w,r, "templates/create.html")
+	}
+}
+
+func IndexHandler(w http.ResponseWriter, r *http.Request) {
+
+	rows, err := database.Query("select * from productdb.Products")
+	if err != nil {
+		log.Println(err)
+	}
+	defer rows.Close()
+	products := []Product{}
+	
+	for rows.Next(){
+		p := Product{}
+		err := rows.Scan(&amp;p.Id, &amp;p.Model, &amp;p.Company, &amp;p.Price)
+		if err != nil{
+			fmt.Println(err)
+			continue
+		}
+		products = append(products, p)
+	}
+
+	tmpl, _ := template.ParseFiles("templates/index.html")
+	tmpl.Execute(w, products)
+}
+
+func main() {
+	 
+	db, err := sql.Open("mysql", "root:password@/productdb")
+    
+    if err != nil {
+        log.Println(err)
+	}
+	database = db
+    defer db.Close()
+	http.HandleFunc("/", IndexHandler)
+	http.HandleFunc("/create", CreateHandler)
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    Для добавления данных определена функция
+    <code>
+     CreateHandler()
+    </code>
+    . Поскольку нам надо, с одной стороны, отображать пользователю форму для добавления, 
+а, с другой стороны, получать и добавлять данные в БД, то данная функция условно разделена на две части. В ней мы проверяем тип запроса. Если запрос представляет тип 
+"GET", то мы будем возвращать форму для добавления. Если запрос имеет тип "POST", то парсим данные полученной формы и извлекаем из них нужные элементы.
+   </p>
+   <p>
+    Для извлечения нужных данных из полученных форм применяется метод
+    <code>
+     r.FormValue()
+    </code>
+    . В качестве параметра этому методу передается название данных. То есть, например, на форме есть 
+следующее поле:
+   </p>
+   <pre class="brush:xml;">&lt;input type="text" name="model" /&gt;</pre>
+   <p>
+    Атрибут name указывает, что название этого поля - "model". Следовательно, чтобы получить введенные в него данные, необходимо использовать выражение
+    <code>
+     model := r.FormValue("model")
+    </code>
+    .
+   </p>
+   <p>
+    После получения всех данных они добавляются в БД с помощью метода database.Exec:
+   </p>
+   <pre class="brush:go;">database.Exec("insert into productdb.Products (model, company, price) values (?, ?, ?)", model, company, price)</pre>
+   <p>
+    После этого выполняется переадресация на корень сайта с помощью функции
+    <span class="b">
+     http.Redirect
+    </span>
+    :
+   </p>
+   <pre class="brush:go;">http.Redirect(w, r, "/", 301)</pre>
+   <p>
+    Третий параметр указывает путь переадресации. В данном случае "/", по которому выводится список объектов из БД. 
+Четвертый параметр представляет статусный код переадресации. В данном случае код 301 указывает, что переадресация временная.
+   </p>
+   <p>
+    Если же запрос к серверу представляет тип GET, то просто возвращаем пользователю веб-страницу create.html:
+   </p>
+   <pre class="brush:go;">http.ServeFile(w,r, "templates/create.html")</pre>
+   <p>
+    Функция IndexHandler, которая возвращает список объектов, остается той же, что и в прошлой теме.
+   </p>
+   <p>
+    Ну и в функции main CreateHandler устанавливаеncя в качестве обработчика по пути "/create":
+   </p>
+   <pre class="brush:go;">http.HandleFunc("/create", CreateHandler)</pre>
+   <p>
+    Запустим приложение. Перейдем по пути "http://localhost:8181/create", и нам отобразится форма. Введем в нее какие-нибудь данные:
+   </p>
+   <img alt="Добавление данных в бд в GO" src="https://metanit.com/go/web//pics/4.3.png"/>
+   <p>
+    И после отправки формы приложение получит данные, добавит их в БД  и переадресует на главную страницу:
+   </p>
+   <img alt="Переадресация redirect в GO" src="https://metanit.com/go/web//pics/4.4.png"/>
+  </div>
+  <div class="item center menC">
+   <h2>
+    Редактирование данных
+   </h2>
+   <div class="date">
+    Последнее обновление: 03.03.2018
+   </div>
+   <p>
+    Продолжим работу с проектом из прошлой темы и добавим в него возможность редактирования данных.
+   </p>
+   <p>
+    Редактирование данных, как и добавление, разбивается на две части. Вначале нам надо отобразить пользователю форму для изменения выбранного объекта. 
+Потом нам надо получить отправленные данные и сохранить их в базу данных.
+   </p>
+   <p>
+    Прежде всего определим форму для редактирования. Для этого в папке
+    <span class="b">
+     templates
+    </span>
+    создадим файл
+    <span class="b">
+     edit.html
+    </span>
+    .
+   </p>
+   <img alt="Edit data in Golang" src="https://metanit.com/go/web//pics/4.5.png"/>
+   <p>
+    Определим в файле
+    <span class="b">
+     edit.html
+    </span>
+    следующий код:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;Edt Product&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h3&gt;Edit Product&lt;/h3&gt;
+        &lt;form method="POST"&gt;
+            &lt;input type="hidden" name="id" value="{{.Id}}" /&gt;
+            &lt;label&gt;Model&lt;/label&gt;&lt;br&gt;
+            &lt;input type="text" name="model" value="{{.Model}}" /&gt;&lt;br&gt;&lt;br&gt;
+            &lt;label&gt;Company&lt;/label&gt;&lt;br&gt;
+            &lt;input type="text" name="company" value="{{.Company}}" /&gt;&lt;br&gt;&lt;br&gt;
+            &lt;label&gt;Price&lt;/label&gt;&lt;br&gt;
+            &lt;input type="number" name="price" value="{{.Price}}" /&gt;&lt;br&gt;&lt;br&gt;
+            &lt;input type="submit" value="Send" /&gt;
+        &lt;/form&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    Данный файл представляет шаблон, в который из кода сервера будут передаваться редактируемые данные.
+   </p>
+   <p>
+    Теперь изменим код сервера, добавив в него возможность редактирования:
+   </p>
+   <pre class="brush:go;">package main
+import (
+    "fmt"
+	"database/sql"
+    _ "github.com/go-sql-driver/mysql"
+	"net/http"
+	"html/template"
+	"log"
+	"github.com/gorilla/mux"
+)
+type Product struct{
+    Id int
+    Model string
+    Company string
+    Price int
+}
+var database *sql.DB
+
+// возвращаем пользователю страницу для редактирования объекта
+func EditPage(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+    id := vars["id"]
+
+	row := database.QueryRow("select * from productdb.Products where id = ?", id)
+	prod := Product{}
+	err := row.Scan(&amp;prod.Id, &amp;prod.Model, &amp;prod.Company, &amp;prod.Price)
+    if err != nil{
+		log.Println(err)
+		http.Error(w, http.StatusText(404), http.StatusNotFound)
+	}else{
+		tmpl, _ := template.ParseFiles("templates/edit.html")
+		tmpl.Execute(w, prod)
+	}
+}
+// получаем измененные данные и сохраняем их в БД
+func EditHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		log.Println(err)
+	}
+	id := r.FormValue("id")
+	model := r.FormValue("model")
+	company := r.FormValue("company")
+	price := r.FormValue("price")
+
+	_, err = database.Exec("update productdb.Products set model=?, company=?, price = ? where id = ?", 
+		model, company, price, id)
+
+	if err != nil {
+		log.Println(err)
+	}
+	http.Redirect(w, r, "/", 301)
+}
+
+func CreateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+
+		err := r.ParseForm()
+		if err != nil {
+			log.Println(err)
+		}
+  		model := r.FormValue("model")
+  		company := r.FormValue("company")
+  		price := r.FormValue("price")
+
+  		_, err = database.Exec("insert into productdb.Products (model, company, price) values (?, ?, ?)", 
+		  model, company, price)
+
+  		if err != nil {
+    		log.Println(err)
+		}
+		http.Redirect(w, r, "/", 301)
+	}else{
+		http.ServeFile(w,r, "templates/create.html")
+	}
+}
+
+func IndexHandler(w http.ResponseWriter, r *http.Request) {
+
+	rows, err := database.Query("select * from productdb.Products")
+	if err != nil {
+		log.Println(err)
+	}
+	defer rows.Close()
+	products := []Product{}
+	
+	for rows.Next(){
+		p := Product{}
+		err := rows.Scan(&amp;p.Id, &amp;p.Model, &amp;p.Company, &amp;p.Price)
+		if err != nil{
+			fmt.Println(err)
+			continue
+		}
+		products = append(products, p)
+	}
+
+	tmpl, _ := template.ParseFiles("templates/index.html")
+	tmpl.Execute(w, products)
+}
+
+func main() {
+	 
+	db, err := sql.Open("mysql", "root:password@/productdb")
+    
+    if err != nil {
+        log.Println(err)
+	}
+	database = db
+	defer db.Close()
+	
+	router := mux.NewRouter()
+	router.HandleFunc("/", IndexHandler)
+  	router.HandleFunc("/create", CreateHandler)
+    router.HandleFunc("/edit/{id:[0-9]+}", EditPage).Methods("GET")
+	router.HandleFunc("/edit/{id:[0-9]+}", EditHandler).Methods("POST")
+	
+    http.Handle("/",router)
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    По сравнению с прошлой темой здесь добавлены функции EditPage и EditHandler и изменена функция main.
+   </p>
+   <p>
+    Чтобы указать, какой объект будет редактироваться, мы будем передавать через адрес id этого объекта. И для упрощения маршрутизации в 
+данном случае мы будем использовать пакет
+    <span class="b">
+     gorilla/mux
+    </span>
+    .
+   </p>
+   <p>
+    В функции IndexPage мы получаем id объекта, который надо изменить, извлекаем из БД даные этого объекта и передаем их в шаблон edit.html:
+   </p>
+   <pre class="brush:go;">func EditPage(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+    id := vars["id"]
+
+	row := database.QueryRow("select * from productdb.Products where id = ?", id)
+	prod := Product{}
+	err := row.Scan(&amp;prod.Id, &amp;prod.Model, &amp;prod.Company, &amp;prod.Price)
+    if err != nil{
+		log.Println(err)
+		http.Error(w, http.StatusText(404), http.StatusNotFound)
+	}else{
+		tmpl, _ := template.ParseFiles("templates/edit.html")
+		tmpl.Execute(w, prod)
+	}
+}</pre>
+   <p>
+    На случай, если в базе данных не окажется объекта с подобным id, с помощью функции
+    <code>
+     http.Error()
+    </code>
+    возвращаем статусный код 404, который 
+указывает, что объект не найден.
+   </p>
+   <p>
+    В функции EditHandler получаем данные из отправленной формы и с их помощью изменяем объект в базе данных по определенному id.
+   </p>
+   <pre class="brush:go;">func EditHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		log.Println(err)
+	}
+	id := r.FormValue("id")
+	model := r.FormValue("model")
+	company := r.FormValue("company")
+	price := r.FormValue("price")
+
+	_, err = database.Exec("update productdb.Products set model=?, company=?, price = ? where id = ?", 
+		model, company, price, id)
+
+	if err != nil {
+		log.Println(err)
+	}
+	http.Redirect(w, r, "/", 301)
+}</pre>
+   <p>
+    После обновления БД выполняется редирект на главную страницу.
+   </p>
+   <p>
+    В функции main эти функции EditPage и EditHandler связываются с определенными маршрутами. По сути они привязаны к одному и тому же маршруту, однако для 
+разного типа запросов: EditPage для запросов GET, а EditHandler - для запросов POST.
+   </p>
+   <pre class="brush:go;">router.HandleFunc("/edit/{id:[0-9]+}", EditPage).Methods("GET")
+router.HandleFunc("/edit/{id:[0-9]+}", EditHandler).Methods("POST")</pre>
+   <p>
+    Стоит отметить, что добавление данных, которое представлено в данном случае функцией CreateHandler, также фактически выполняет два действия в зависимости от типа запроса: отображает страницу для добавления и 
+собственно добавляет данные. И в прицнипе организацию добавления можно сделать также, как и редактирование, разделив на две функции для каждого типа запросов.
+   </p>
+   <p>
+    Для упрощения управлением объектами изменим файл
+    <span class="b">
+     index.html
+    </span>
+    , добавив в него ссылки на редактирование:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;Products&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h2&gt;Список товаров&lt;/h2&gt;
+        &lt;p&gt;&lt;a href="/create"&gt;Добавить&lt;/a&gt;&lt;/p&gt;
+        &lt;table&gt;
+            &lt;thead&gt;&lt;th&gt;Id&lt;/th&gt;&lt;th&gt;Model&lt;/th&gt;&lt;th&gt;Company&lt;/th&gt;&lt;th&gt;Price&lt;/th&gt;&lt;th&gt;&lt;/th&gt;&lt;/thead&gt;
+            {{range . }}
+            &lt;tr&gt;
+                &lt;td&gt;{{.Id}}&lt;/td&gt;
+                &lt;td&gt;{{.Model}}&lt;/td&gt;
+                &lt;td&gt;{{.Company}}&lt;/td&gt;
+                &lt;td&gt;{{.Price}}&lt;/td&gt;
+                &lt;td&gt;&lt;a href="/edit/{{.Id}}"&gt;Изменить&lt;/a&gt;
+                &lt;/td&gt;
+            &lt;/tr&gt;
+            {{end}}
+        &lt;/table&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    И после запуска приложения мы сможем отредактировать нужные объекты:
+   </p>
+   <img alt="Редактирование данных в БД в Go" src="https://metanit.com/go/web//pics/4.6.png"/>
+  </div>
+  <div class="item center menC">
+   <h2>
+    Удаление данных
+   </h2>
+   <div class="date">
+    Последнее обновление: 03.03.2018
+   </div>
+   <p>
+    Продолжим работу с проектом из прошлой темы и добавим в него удаление объектов. Удаление можно сделать различными способами. В данном же 
+случае мы оставимся на самом простом варианте, когда в GET-запросе передается id объекта, и в базе данных происходит удаление по этому id.
+   </p>
+   <p>
+    Итак, изменим код сервера следующим образом:
+   </p>
+   <pre class="brush:go;">package main
+import (
+    "fmt"
+	"database/sql"
+    _ "github.com/go-sql-driver/mysql"
+	"net/http"
+	"html/template"
+	"log"
+	"github.com/gorilla/mux"
+)
+type Product struct{
+    Id int
+    Model string
+    Company string
+    Price int
+}
+var database *sql.DB
+
+func DeleteHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+    id := vars["id"]
+
+	_, err := database.Exec("delete from productdb.Products where id = ?", id)
+    if err != nil{
+		log.Println(err)
+	}
+	
+	http.Redirect(w, r, "/", 301)
+}
+
+func EditPage(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+    id := vars["id"]
+
+	row := database.QueryRow("select * from productdb.Products where id = ?", id)
+	prod := Product{}
+	err := row.Scan(&amp;prod.Id, &amp;prod.Model, &amp;prod.Company, &amp;prod.Price)
+    if err != nil{
+		log.Println(err)
+		http.Error(w, http.StatusText(404), http.StatusNotFound)
+	}else{
+		tmpl, _ := template.ParseFiles("templates/edit.html")
+		tmpl.Execute(w, prod)
+	}
+}
+
+func EditHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		log.Println(err)
+	}
+	id := r.FormValue("id")
+	model := r.FormValue("model")
+	company := r.FormValue("company")
+	price := r.FormValue("price")
+
+	_, err = database.Exec("update productdb.Products set model=?, company=?, price = ? where id = ?", 
+		model, company, price, id)
+
+	if err != nil {
+		log.Println(err)
+	}
+	http.Redirect(w, r, "/", 301)
+}
+
+func CreateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+
+		err := r.ParseForm()
+		if err != nil {
+			log.Println(err)
+		}
+  		model := r.FormValue("model")
+  		company := r.FormValue("company")
+  		price := r.FormValue("price")
+
+  		_, err = database.Exec("insert into productdb.Products (model, company, price) values (?, ?, ?)", 
+		  model, company, price)
+
+  		if err != nil {
+    		log.Println(err)
+		}
+		http.Redirect(w, r, "/", 301)
+	}else{
+		http.ServeFile(w,r, "templates/create.html")
+	}
+}
+
+func IndexHandler(w http.ResponseWriter, r *http.Request) {
+
+	rows, err := database.Query("select * from productdb.Products")
+	if err != nil {
+		log.Println(err)
+	}
+	defer rows.Close()
+	products := []Product{}
+	
+	for rows.Next(){
+		p := Product{}
+		err := rows.Scan(&amp;p.Id, &amp;p.Model, &amp;p.Company, &amp;p.Price)
+		if err != nil{
+			fmt.Println(err)
+			continue
+		}
+		products = append(products, p)
+	}
+
+	tmpl, _ := template.ParseFiles("templates/index.html")
+	tmpl.Execute(w, products)
+}
+
+func main() {
+	 
+	db, err := sql.Open("mysql", "root:password@/productdb")
+    
+    if err != nil {
+        log.Println(err)
+	}
+	database = db
+	defer db.Close()
+	
+	router := mux.NewRouter()
+	router.HandleFunc("/", IndexHandler)
+  	router.HandleFunc("/create", CreateHandler)
+    router.HandleFunc("/edit/{id:[0-9]+}", EditPage).Methods("GET")
+	router.HandleFunc("/edit/{id:[0-9]+}", EditHandler).Methods("POST")
+    router.HandleFunc("/delete/{id:[0-9]+}", DeleteHandler)
+	
+    http.Handle("/",router)
+
+	fmt.Println("Server is listening...")
+	http.ListenAndServe(":8181", nil)
+}</pre>
+   <p>
+    По сравнению с прошлой темой зедсь добавлена функция DeleteHandler, которая получает id удаляемого объекта и выполняет DELETE-запрос к базе данных. И после 
+удаления происходит переадресация на главную страницу.
+   </p>
+   <p>
+    Для упрощения удаления определим в файле
+    <span class="b">
+     index.html
+    </span>
+    ссылку на удаление рядом с каждым объектом:
+   </p>
+   <pre class="brush:xml;">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;meta charset="UTF-8"&gt;
+        &lt;title&gt;Products&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h2&gt;Список товаров&lt;/h2&gt;
+        &lt;p&gt;&lt;a href="/create"&gt;Добавить&lt;/a&gt;&lt;/p&gt;
+        &lt;table&gt;
+            &lt;thead&gt;&lt;th&gt;Id&lt;/th&gt;&lt;th&gt;Model&lt;/th&gt;&lt;th&gt;Company&lt;/th&gt;&lt;th&gt;Price&lt;/th&gt;&lt;th&gt;&lt;/th&gt;&lt;/thead&gt;
+            {{range . }}
+            &lt;tr&gt;
+                &lt;td&gt;{{.Id}}&lt;/td&gt;
+                &lt;td&gt;{{.Model}}&lt;/td&gt;
+                &lt;td&gt;{{.Company}}&lt;/td&gt;
+                &lt;td&gt;{{.Price}}&lt;/td&gt;
+                &lt;td&gt;&lt;a href="/edit/{{.Id}}"&gt;Изменить&lt;/a&gt; |
+                    &lt;a href="/delete/{{.Id}}"&gt;Удалить&lt;/a&gt;
+                &lt;/td&gt;
+            &lt;/tr&gt;
+            {{end}}
+        &lt;/table&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</pre>
+   <p>
+    Протестируем удаление, нажав на соответствующую ссылку рядом с каким-нибудь объектом:
+   </p>
+   <img alt="Удаление из базы данных в Go" src="https://metanit.com/go/web//pics/4.7.png"/>
+  </div>
+ </body>
+</html>
